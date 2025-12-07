@@ -1,0 +1,343 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+Personal Meal Planner – MVP v1
+1. Product Overview
+
+This meal-planning app ingests a user’s “liked” recipes from Paprika and generates balanced, varied weekly dinner plans. Users pick which days they need dinners for, review suggested recipes, adjust selections, and then produce a consolidated grocery list with aggregated ingredient quantities. The final output includes a shareable list of ingredients (optimized for Apple Notes) and a reference packet of the recipes selected for the week.
+
+The objective: cut the decision fatigue out of weekly meal planning while keeping meals aligned with foods the household enjoys.
+
+2. Users
+Primary User
+
+Individuals or couples who already maintain a recipe library in Paprika and tag recipes they enjoy.
+
+Secondary User
+
+Anyone who wants lightweight weekly meal planning tied to their existing recipe manager.
+
+3. Problem Statement
+
+Users who keep their entire cooking workflow in Paprika still face friction every week:
+
+They must remember which recipes they “like.”
+
+They manually choose recipes for each day.
+
+Variety is hard to maintain.
+
+Collating ingredients across multiple recipes consumes time.
+
+The result is decision overload and wasted effort. The app reduces that friction by generating diverse recommendations from the user’s preferred recipes, letting them approve or adjust the final menu, and producing a consolidated, ready-to-shop ingredient list.
+
+4. Goals & Non-Goals
+Goals
+
+Import a user’s liked recipes from Paprika.
+
+Allow the user to select which nights of an upcoming week require dinners.
+
+Generate a set of recommended recipes for those nights.
+
+Ensure variety across the week (cuisine, protein, prep effort).
+
+Allow the user to approve or reject each recipe.
+
+Consolidate ingredients across all approved meals.
+
+Provide a clean, structured ingredient list for Apple Notes.
+
+Provide recipe instructions for each selected meal in an easily copied format.
+
+Non-Goals (for MVP)
+
+Automatic push into Paprika’s meal-planning calendar.
+
+Grocery-store-specific categorization or integrations.
+
+Real-time nutrition analysis.
+
+Multi-week planning.
+
+5. Functional Requirements
+5.1 Paprika Integration
+
+Input: User credentials for Paprika’s sync API.
+Requirements:
+
+Authenticate using /account/login (per unofficial API patterns).
+
+Pull full recipe list via /api/v2/sync/recipes/.
+
+Filter recipes where categories includes the user-defined “liked” category.
+
+Cache recipe objects locally for fast access.
+
+5.2 Weekly Day Selection
+
+Requirements:
+
+Display the seven days of the upcoming week: Sun → Sat.
+
+User toggles “Needs dinner” per day.
+
+State stored in local app persistence.
+
+5.3 Meal Recommendation Engine
+
+Inputs:
+
+All liked recipes (or recipes from selected categories).
+
+User-selected days.
+
+Diversity constraints.
+
+Requirements:
+
+For each selected day, propose a recipe using AI-powered recommendation engine.
+
+AI-Powered Planning:
+
+Use OpenAI API to:
+- Analyze recipes and extract metadata (cuisine type, protein type, difficulty, prep time)
+- Score diversity across recipes (cuisine variety, protein variety, prep effort distribution)
+- Generate meal plan recommendations that maximize diversity while respecting constraints
+
+Diversity constraints must include:
+
+Protein type (avoid e.g. three chicken nights in a row)
+
+Cuisine variety
+
+Prep/cook difficulty (avoid stacking time-intensive meals)
+
+Allow user to "Regenerate suggestions" for specific days without affecting others.
+
+5.3.1 Recipe Generation (New Recipes)
+
+Requirements:
+
+Generate entirely new recipes based on the user's existing Paprika recipe collection.
+
+AI-Powered Recipe Generation:
+
+Use OpenAI API to:
+- Analyze the user's existing recipes to understand their cooking style, preferences, and ingredient patterns
+- Generate novel recipes that:
+  * Match the user's preferred cuisine styles and flavor profiles
+  * Use similar ingredient combinations and cooking techniques
+  * Maintain appropriate difficulty levels and prep times
+  * Are inspired by but distinct from existing recipes
+- Optionally filter by selected categories (e.g., generate new recipes similar to recipes in "Italian" category)
+
+Inputs:
+- All recipes from Paprika (or recipes from selected categories)
+- Optional: Category filter to focus generation on specific recipe types
+- User preferences (cuisine, protein type, difficulty level)
+
+Output:
+- Complete new recipe with:
+  * Name
+  * Ingredients list (with quantities and units)
+  * Step-by-step instructions
+  * Estimated prep/cook time
+  * Difficulty level
+  * Suggested category tags
+
+User can:
+- Generate a single new recipe
+- Generate multiple recipe variations
+- Save generated recipes back to Paprika (future enhancement)
+- Use generated recipes in meal planning (same as existing recipes)
+
+5.4 Meal Approval Workflow
+
+Requirements:
+
+Present the full week’s suggestions in a single screen.
+
+Per recipe: Approve / Reject / Replace.
+
+After all selected days are approved, user proceeds to finalization.
+
+5.5 Ingredient Aggregation Engine
+
+Requirements:
+
+Parse ingredient lists from each approved recipe using AI-assisted parsing.
+
+AI-Assisted Parsing:
+
+Use OpenAI API to parse complex ingredient lines with high accuracy:
+- Extract quantity, unit, and ingredient name from natural language
+- Handle ambiguous formats (e.g., "2-3 large tomatoes", "1/2 cup, plus 2 tablespoons")
+- Disambiguate ingredient names in context
+- Fallback to regex-based parsing for simple, standard formats
+
+Normalize ingredient lines:
+
+Detect units (cup, tbsp, gram, etc.).
+
+Combine quantities for identical ingredients.
+
+Maintain separate lines if unit conversion is ambiguous.
+
+AI-Assisted Categorization:
+
+Organize final list into categories using AI for accurate categorization:
+- Produce
+- Meat/Fish
+- Dry Goods
+- Dairy
+- Spices
+- Pantry
+- Other
+
+AI handles edge cases (e.g., "chicken broth" → Pantry, not Meat/Fish).
+
+Output must be cleanly copyable.
+
+5.6 Output: Notes-Compatible Ingredient List
+
+Requirements:
+
+Generate a simple text block formatted for Apple Notes.
+
+Group ingredients under headers.
+
+Provide checkbox-styled bullets if desired.
+
+Example format:
+
+WEEK OF JAN 12 — GROCERY LIST
+
+Produce
+• 3 bell peppers
+• 1 bunch cilantro
+
+Meat/Fish
+• 2 lb chicken thighs
+
+5.7 Output: Recipe Packet
+
+Requirements:
+
+Provide a text copy of each selected recipe with:
+
+Title
+
+Ingredients
+
+Instructions
+
+Ordering: Sunday → Saturday.
+
+Single consolidated text output or multiple sections.
+
+6. UX Requirements
+Primary Flow
+
+Authenticate Paprika account.
+
+Load “liked” recipes.
+
+Choose which days require dinners.
+
+Generate suggestions.
+
+User reviews, approves, or modifies selections.
+
+User finalizes week.
+
+Ingredient list + recipe packet displayed.
+
+User copies outputs.
+
+Secondary Considerations
+
+Clear, minimal UI.
+
+Emphasis on speed: generate a full plan in under 5 seconds.
+
+Local caching to minimize repeated Paprika fetches.
+
+7. Technical Requirements
+Backend
+
+Node server (or serverless functions) using the paprika-api library or direct endpoint calls.
+
+AI Integration:
+
+OpenAI API for:
+- Recipe analysis and metadata extraction
+- Meal plan generation with diversity scoring
+- Ingredient parsing and categorization
+
+Modules:
+
+Auth module
+
+Recipe ingestion module
+
+AI-powered recommendation engine (OpenAI integration)
+
+AI-assisted ingredient aggregator (OpenAI integration)
+
+Formatter for outputs
+
+Frontend
+
+Web UI, mobile-responsive.
+
+Component architecture:
+
+Day-selector
+
+Recipe review panel
+
+Aggregated list output
+
+Data Normalization
+
+Ingredient parsing system must isolate:
+
+Quantity
+
+Unit
+
+Item
+
+Special cases:
+
+“1 can of beans” → no forced conversions
+
+“Salt to taste” → non-aggregated
+
+8. Success Metrics
+
+Time to complete a weekly meal plan ≤ 2 minutes.
+
+≥ 80% of recommendations approved without manual replacement.
+
+Ingredient lists require no manual cleanup >90% of the time.
+
+9. Risks & Mitigations
+Risk	Mitigation
+Paprika API rate limits or data changes	Cache results; retry logic; no heavy polling
+OpenAI API costs/rate limits	Cache recipe analysis results; batch requests where possible; implement rate limiting
+Ingredient parsing inaccuracies	AI-assisted parsing with regex fallback; keep fallback mode: no aggregation when unsure
+Lack of recipe variety	AI-powered diversity scoring with tunable weights
+User doesn't tag recipes consistently	Provide "like" selector inside the app as an override; AI can help categorize recipes
+10. Future Enhancements
+
+Automatic push to Paprika's /meals API endpoint.
+
+Integration with grocery delivery services.
+
+Nutrition scoring.
+
+Multi-week planning and leftovers modeling.
+
+Auto-learning of household preferences based on approvals/rejections.
+
+Save generated recipes back to Paprika via API.

@@ -1,0 +1,298 @@
+1. Technical Architecture Plan (for Cursor)
+1.1 Stack & Repo Layout
+
+Recommended stack
+
+Framework: Next.js + TypeScript
+
+UI: React (App Router), TailwindCSS
+
+Runtime: Node.js (Next API routes for backend logic)
+
+AI: OpenAI API (for recipe analysis, meal planning, ingredient parsing)
+
+Tests: Vitest or Jest + React Testing Library
+
+State:
+
+Client: React state + TanStack Query (or simple SWR)
+
+Server: In-memory or lightweight KV/db if you want persistence beyond a single user
+
+High-level repo structure
+
+/
+  app/
+    page.tsx                     # Entry UI
+    plan/
+      page.tsx                   # Meal planning flow
+    api/
+      paprika/
+        login/route.ts           # POST /api/paprika/login
+        recipes/route.ts         # GET /api/paprika/recipes
+      plan/route.ts              # POST /api/plan - generate meal plan
+      recipes/
+        generate/route.ts        # POST /api/recipes/generate - generate new recipes
+      grocery-list/route.ts      # POST /api/grocery-list - aggregate ingredients
+  lib/
+    paprika/
+      client.ts                  # PaprikaClient: login, sync, etc.
+      types.ts                   # Paprika recipe types
+    planning/
+      planner.ts                 # AI-powered recommendation engine (recipes → weekly plan)
+      diversity.ts               # AI-powered diversity scoring utilities
+    ingredients/
+      parser.ts                  # AI-assisted ingredient line → {qty, unit, name}
+      aggregator.ts              # Aggregate ingredients across recipes
+      categorizer.ts             # AI-assisted ingredient → section (Produce, Meat, etc.)
+    ai/
+      openai-client.ts           # OpenAI API client wrapper
+      prompts.ts                  # Prompt templates for recipe analysis, planning, parsing, recipe generation
+      recipe-generator.ts        # AI-powered recipe generation engine
+    formatters/
+      notesFormatter.ts          # Text block formatted for Apple Notes
+      recipePacketFormatter.ts   # Weekly recipe packet
+    utils/
+      validation.ts              # Input validation helpers
+  components/
+    DaySelector.tsx
+    RecipeCard.tsx
+    PlanReviewTable.tsx
+    GroceryListOutput.tsx
+    GeneratedRecipeCard.tsx
+    Toast.tsx
+  tests/
+    unit/
+      planner.test.ts
+      ingredients.parser.test.ts
+      ingredients.aggregator.test.ts
+      paprika.client.test.ts
+    integration/
+      plan_api.test.ts
+      grocery_list_api.test.ts
+
+
+You can compress this for MVP, but this structure keeps boundaries clean so Cursor doesn’t create a ball of mud.
+
+1.2 Core Data Models
+
+Define these in lib/paprika/types.ts and lib/planning/types.ts.
+
+Paprika recipe (normalized)
+
+export interface PaprikaRecipe {
+  uid: string;
+  name: string;
+  ingredients: string[];      // raw lines from Paprika
+  directions: string[];       // steps
+  categories: string[];
+  rating?: number;
+  source?: string;
+  photo?: string;
+}
+
+
+Planning domain
+
+export type Weekday =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+export interface DayRequirement {
+  day: Weekday;
+  needsDinner: boolean;
+}
+
+export interface PlannedMeal {
+  day: Weekday;
+  recipe: PaprikaRecipe;
+}
+
+export interface WeeklyPlan {
+  meals: PlannedMeal[];   // one per “needsDinner=true”
+}
+
+
+Ingredients domain
+
+export interface ParsedIngredient {
+  raw: string;
+  name: string;           // "chicken thighs"
+  quantity?: number;      // 2
+  unit?: string;          // "lb"
+  notes?: string;         // "boneless, skinless"
+}
+
+export interface AggregatedIngredient {
+  name: string;
+  totalQuantity?: number;
+  unit?: string;
+  lines: ParsedIngredient[]; // underlying lines if aggregation is partial
+  section: string;           // "Produce", "Meat/Fish", etc.
+}
+
+1.3 API Design (internal Next routes)
+
+/api/paprika/login (POST)
+
+Input: { email: string; password: string; }
+
+Behavior:
+
+Calls PaprikaClient.login(...)
+
+Stores auth token in session (Next Auth-less: use HTTP-only cookie or in-memory token for single-user dev)
+
+Output: { success: true } or { error: "Invalid credentials" }
+
+/api/paprika/recipes (GET)
+
+Behavior:
+
+Reads auth token
+
+Uses PaprikaClient.syncRecipes()
+
+Returns normalized recipes
+
+Query param: likedCategory (e.g. ?likedCategory=Favorites) to filter on server side
+
+/api/plan (POST)
+
+Input:
+
+{
+  days: DayRequirement[];
+  likedCategory: string;
+}
+
+
+Behavior:
+
+Fetch liked recipes (via PaprikaClient or cached store)
+
+Calls generatePlan(recipes, days) from planner.ts
+
+Output: WeeklyPlan
+
+/api/recipes/generate (POST)
+
+Input:
+
+{
+  categoryUids?: string[];  // Optional: filter to generate recipes similar to these categories
+  count?: number;            // Optional: number of recipes to generate (default: 1)
+}
+
+Behavior:
+
+Fetch recipes from Paprika (optionally filtered by categoryUids)
+
+Call generateRecipe(recipes, categoryFilter) from recipe-generator.ts
+
+Output: PaprikaRecipe[] (array of generated recipes)
+
+/api/grocery-list (POST)
+
+Input:
+
+{
+  meals: PlannedMeal[];
+}
+
+
+Behavior:
+
+Extract all ingredients from the recipes
+
+parseIngredients() → aggregateIngredients() → categorizeIngredients()
+
+formatGroceryListForNotes() to produce final text block
+
+formatRecipePacket() for the weekly recipe text
+
+Output:
+
+{
+  groceryListText: string;
+  recipePacketText: string;
+}
+
+1.4 Core Service Components
+
+PaprikaClient (lib/paprika/client.ts)
+
+login(email, password)
+
+syncRecipes(): PaprikaRecipe[]
+
+Planner (lib/planning/planner.ts)
+
+generatePlan(recipes, days): WeeklyPlan
+
+AI-powered planning:
+- Uses OpenAI API to analyze recipes and extract metadata (cuisine, protein, difficulty)
+- Uses OpenAI API to generate diverse meal plan recommendations
+- Internally uses scoreDiversity(...) from diversity.ts (AI-powered scoring)
+
+Recipe Generator (lib/ai/recipe-generator.ts)
+
+generateRecipe(existingRecipes, categoryFilter?): PaprikaRecipe
+
+AI-powered recipe generation:
+- Uses OpenAI API to analyze user's existing recipes to understand cooking style and preferences
+- Generates novel recipes that match user's preferred styles while being distinct
+- Optionally filters by category to generate recipes similar to specific recipe types
+- Returns complete recipe with name, ingredients, instructions, prep time, difficulty
+
+Ingredients Engine (lib/ingredients)
+
+parseIngredient(line: string): ParsedIngredient
+- AI-assisted parsing using OpenAI API
+- Falls back to regex-based parsing for simple cases
+- Handles complex formats and ambiguous ingredient names
+
+aggregateIngredients(parsed: ParsedIngredient[]): AggregatedIngredient[]
+
+categorizeIngredient(name: string): string
+- AI-assisted categorization using OpenAI API
+- Handles edge cases and ambiguous ingredients
+- Falls back to keyword-based categorization for common items
+
+Formatters (lib/formatters)
+
+formatGroceryListForNotes(aggregated, weekLabel): string
+
+formatRecipePacket(weeklyPlan): string
+
+1.5 Two Implementation Paths (you pick)
+
+Path A: Single-user, no database (fastest to build)
+
+Store Paprika credentials and OpenAI API key in .env.local:
+- PAPRIKA_EMAIL
+- PAPRIKA_PASSWORD
+- OPENAI_API_KEY
+
+All data pulled fresh per session; caching optional (recommended for OpenAI API responses to reduce costs).
+
+Good enough for you and your wife.
+
+Path B: Multi-user capable
+
+Add a small DB (Supabase / Postgres / SQLite) and store:
+
+Users
+
+Paprika auth tokens
+
+Saved weekly plans
+
+More setup, but future-proof.
+
+For now, Path A is fine. The architecture above works for both.

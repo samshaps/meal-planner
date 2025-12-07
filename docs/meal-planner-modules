@@ -1,0 +1,392 @@
+2. Module List (Iterative Build Plan)
+
+Each “module” below is an increment you can build and test end-to-end in Cursor.
+
+Module 1: Paprika Integration & Recipe Load
+
+Scope / Features
+
+UI form to enter Paprika email/password + liked category name.
+
+Call /api/paprika/login and store session state client-side.
+
+Fetch recipes from /api/paprika/recipes?likedCategory=....
+
+Display a simple table/list of “liked” recipes (name, categories).
+
+Files
+
+app/page.tsx or app/plan/page.tsx (basic UI)
+
+app/api/paprika/login/route.ts
+
+app/api/paprika/recipes/route.ts
+
+lib/paprika/client.ts
+
+lib/paprika/types.ts
+
+Testing criteria
+
+Unit tests
+
+PaprikaClient.login
+
+Returns token on valid credentials (mock Paprika API).
+
+Throws/returns error on invalid credentials.
+
+PaprikaClient.syncRecipes
+
+Maps Paprika JSON → PaprikaRecipe[].
+
+Properly handles categories array and missing optional fields.
+
+Integration / manual
+
+Input real credentials → see a list of recipes in UI.
+
+When liked category is provided:
+
+Only recipes that include that category appear.
+
+Error states:
+
+Invalid credentials show a clear error.
+
+If no recipes have that category, show empty state messaging.
+
+Module 2: Day Selection & State Management
+
+Scope / Features
+
+UI to select which days of the week require dinner.
+
+Use simple toggle buttons or checkboxes for Sun–Sat.
+
+Store selection in local state (and optionally in localStorage).
+
+Files
+
+components/DaySelector.tsx
+
+Small state hook: usePlanningState (in app/plan/page.tsx or lib/hooks/usePlanningState.ts)
+
+Testing criteria
+
+Unit
+
+DaySelector:
+
+Given a DayRequirement[], clicking a day toggles its needsDinner value.
+
+Optionally: usePlanningState persists and restores state from localStorage.
+
+Manual
+
+Toggle pattern:
+
+Turn on Sunday, Monday, Wednesday, Friday.
+
+Refresh page (if you implement persistence) → selection remains.
+
+Confirm that this selection is passed correctly into /api/plan.
+
+Module 3: Meal Recommendation Engine
+
+Scope / Features
+
+Implement generatePlan(recipes, days) in planner.ts using OpenAI API.
+
+AI-Powered Planning:
+
+Filter days to those with needsDinner = true.
+
+Use OpenAI API to:
+- Analyze recipes and extract metadata (cuisine type, protein type, difficulty, prep time)
+- Score diversity across recipes (cuisine variety, protein variety, prep effort distribution)
+- Generate meal plan recommendations that maximize diversity while respecting constraints
+
+Diversity constraints:
+- Avoid repeating exact same recipe in the week
+- Balance protein types (avoid e.g. three chicken nights in a row)
+- Ensure cuisine variety across the week
+- Distribute prep/cook difficulty (avoid stacking time-intensive meals)
+
+Files
+
+lib/planning/planner.ts
+
+lib/planning/diversity.ts
+
+lib/ai/openai-client.ts - OpenAI API client wrapper
+
+lib/ai/prompts.ts - Prompt templates for recipe analysis and planning
+
+Testing criteria
+
+Unit (critical)
+
+Given:
+
+A set of recipes tagged with "Chicken", "Beef", "Vegetarian"…
+
+A week needing 5 dinners.
+
+generatePlan:
+
+Returns exactly 5 PlannedMeals.
+
+No duplicate recipes in the same plan.
+
+When limited recipes exist, clearly documented behavior (e.g. repeats allowed when necessary).
+
+Edge cases:
+
+Only 1 recipe available but multiple days selected → function still returns a plan, with repeated recipe.
+
+Zero recipes → returns empty meals and a defined error or signal.
+
+Manual
+
+Trigger /api/plan with a small set of recipes and visualize the output in a basic debug view.
+
+Confirm that reruns produce "sensible" diversity.
+
+Module 3.5: AI Recipe Generation (PRIORITY)
+
+Scope / Features
+
+Generate entirely new recipes based on the user's existing Paprika recipe collection.
+
+AI-Powered Recipe Generation:
+
+Use OpenAI API to analyze user's existing recipes and generate novel recipes that:
+- Match the user's preferred cuisine styles and flavor profiles
+- Use similar ingredient combinations and cooking techniques
+- Maintain appropriate difficulty levels and prep times
+- Are inspired by but distinct from existing recipes
+
+Features:
+- Generate single new recipe
+- Generate multiple recipe variations
+- Optionally filter by selected categories (e.g., generate recipes similar to "Italian" category recipes)
+- Display generated recipe with full details (name, ingredients, instructions, prep time, difficulty)
+- Allow user to use generated recipes in meal planning (treat as regular recipes)
+
+Files
+
+lib/ai/recipe-generator.ts - Core recipe generation logic using OpenAI
+
+lib/ai/prompts.ts - Add prompt template for recipe generation
+
+app/api/recipes/generate/route.ts - POST endpoint to generate new recipes
+
+app/plan/generate-recipe/page.tsx - UI for recipe generation
+
+components/GeneratedRecipeCard.tsx - Component to display generated recipe
+
+lib/planning/types.ts - Add GeneratedRecipe type (or extend PaprikaRecipe)
+
+Testing criteria
+
+Unit
+
+generateRecipe function:
+- Given a set of existing recipes, returns a valid recipe object
+- Generated recipe has all required fields (name, ingredients, instructions)
+- Generated recipe is distinct from input recipes (not a direct copy)
+- When category filter provided, generated recipe matches that category style
+
+AI prompt:
+- Analyzes existing recipes correctly
+- Generates recipes that match user's style
+- Handles edge cases (empty recipe set, single recipe, etc.)
+
+Manual
+
+Generate a recipe based on all recipes:
+- Verify recipe is complete and usable
+- Verify recipe style matches user's collection
+
+Generate a recipe filtered by category:
+- Verify generated recipe matches category style
+- Compare with category-specific recipes
+
+Use generated recipe in meal plan:
+- Verify generated recipe appears in meal plan selection
+- Verify it can be assigned to days like regular recipes
+
+Module 3.5: AI Recipe Generation (PRIORITY - Build before Module 4)
+
+Module 4: Plan Review & Adjustment
+
+Scope / Features
+
+Display the generated WeeklyPlan in a table:
+
+Columns: Day, Recipe title, Actions.
+
+Actions per day:
+
+Approve (default)
+
+Replace (regenerate suggestion for that day only)
+
+Maybe “Choose manually” from a dropdown of all liked recipes.
+
+Files
+
+components/PlanReviewTable.tsx
+
+Extend /api/plan or add /api/plan/regenerate-day if you want day-wise regeneration, or handle client-side by re-calling generatePlan with constraints.
+
+Testing criteria
+
+Unit
+
+PlanReviewTable:
+
+Clicking “Replace” triggers a callback with the target day.
+
+Approved plan can be derived from current UI state.
+
+Manual
+
+Generate an initial plan.
+
+Replace Monday’s recipe:
+
+Monday changes; other days remain intact.
+
+Confirm you can go from:
+
+Day selection → plan generation → full approval without errors.
+
+Module 5: Ingredient Parsing & Aggregation
+
+Scope / Features
+
+Parse ingredient lines from all recipes in the approved weekly plan using AI-assisted parsing.
+
+AI-Assisted Parsing:
+
+Use OpenAI API to parse complex ingredient lines with high accuracy:
+- Extract quantity, unit, and ingredient name
+- Handle ambiguous formats and edge cases
+- Fallback to regex-based parsing for simple cases
+
+Aggregate quantities for matching ingredients.
+
+Categorize ingredients into shopping sections (AI-assisted categorization).
+
+Files
+
+lib/ingredients/parser.ts - AI-assisted parser with regex fallback
+
+lib/ingredients/aggregator.ts
+
+lib/ingredients/categorizer.ts - AI-assisted categorizer
+
+lib/ai/prompts.ts - Prompt templates for ingredient parsing and categorization
+
+app/api/grocery-list/route.ts
+
+Testing criteria
+
+Unit (most important for correctness)
+
+parseIngredient (AI-assisted with regex fallback):
+
+"2 lb boneless skinless chicken thighs" → { name: 'boneless skinless chicken thighs', quantity: 2, unit: 'lb' }
+
+"1 can black beans" → { name: 'black beans', quantity: 1, unit: 'can' }
+
+"Salt to taste" → { name: 'salt', quantity: undefined, unit: undefined }
+
+Complex cases handled by AI:
+- "2-3 large tomatoes" → parsed correctly
+- "1/2 cup, plus 2 tablespoons" → parsed correctly
+- Ambiguous ingredient names → AI disambiguates
+
+aggregateIngredients:
+
+Given:
+
+2 lb chicken thighs
+
+1 lb chicken thighs
+→ aggregated: 3 lb chicken thighs.
+
+When units are incompatible:
+
+1 cup milk + 200 ml milk → keep separate lines under same ingredient, or store lines in lines[] and only aggregate when unit matches.
+
+categorizeIngredient (AI-assisted):
+
+"chicken thighs" → "Meat/Fish"
+
+"cilantro" → "Produce"
+
+"olive oil" → "Pantry"
+
+AI handles ambiguous cases:
+- "chicken broth" → "Pantry" (not Meat/Fish)
+- "parmesan cheese" → "Dairy"
+- Unknown ingredients → AI categorizes based on context
+
+Fallback to keyword-based categorization for common items, default to "Other" if truly unknown.
+
+Manual
+
+For 2–3 chosen recipes, compare the original ingredients with your aggregated list to ensure no items are lost or duplicated.
+
+Module 6: Notes Export & Recipe Packet
+
+Scope / Features
+
+Take AggregatedIngredient[] and WeeklyPlan and format them into final text outputs.
+
+Provide a final page in the UI that:
+
+Shows the grocery list in a textarea-like component with “Copy to clipboard”.
+
+Shows the weekly recipe packet similarly.
+
+Files
+
+lib/formatters/notesFormatter.ts
+
+lib/formatters/recipePacketFormatter.ts
+
+components/GroceryListOutput.tsx
+
+components/RecipePacketOutput.tsx
+
+Extend /api/grocery-list/route.ts to return both texts.
+
+Testing criteria
+
+Unit
+
+formatGroceryListForNotes:
+
+Groups ingredients under consistent section headers.
+
+Includes a week label (e.g. “WEEK OF 2025-01-12 — GROCERY LIST” if you pass in a date).
+
+formatRecipePacket:
+
+Orders recipes by day.
+
+Includes title, ingredients, and instructions in a predictable format.
+
+Manual
+
+Copy grocery list text into Apple Notes:
+
+Check that bullets/headers appear cleanly.
+
+Copy recipe packet text into Notes:
+
+Each day clearly labeled, instructions readable.

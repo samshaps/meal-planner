@@ -189,11 +189,6 @@ export function aggregateIngredients(
       displayUnit = "";
     }
     
-    // Use formatted quantity if available, otherwise use totalQuantity
-    const finalDisplayQuantity = displayQuantity !== undefined 
-      ? parseFloat(displayQuantity) 
-      : totalQuantity;
-    
     // Special handling for "salt and pepper" - always collapse to single entry without quantity
     if (canonicalName === "salt and pepper") {
       result.push({

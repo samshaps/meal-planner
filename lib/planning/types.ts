@@ -26,8 +26,8 @@ export interface PlannedMeal {
     uid: string;
     name: string;
     description?: string; // Brief overview of featured ingredients and flavors
-    ingredients?: string; // Ingredient list (needed for grocery list generation)
-    directions?: string; // Full recipe instructions
+    ingredients?: string | string[]; // Ingredient list (needed for grocery list generation)
+    directions?: string | string[]; // Full recipe instructions
     [key: string]: unknown;
   };
 }

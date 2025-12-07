@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { PaprikaClient } from "@/lib/paprika/client";
-import { generateRecipe, generateRecipes } from "@/lib/ai/recipe-generator";
+import { generateRecipes } from "@/lib/ai/recipe-generator";
 
 interface GenerateRecipeRequestBody {
   categoryUids?: string[];

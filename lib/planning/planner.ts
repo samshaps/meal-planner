@@ -3,7 +3,7 @@
 import { PaprikaRecipe } from "@/lib/paprika/types";
 import { DayRequirement, WeeklyPlan, PlannedMeal, Weekday } from "@/lib/planning/types";
 import { callOpenAI } from "@/lib/ai/openai-client";
-import { getRecipeAnalysisPrompt, getMealPlanPrompt } from "@/lib/ai/prompts";
+import { getRecipeAnalysisPrompt } from "@/lib/ai/prompts";
 import { RecipeMetadata } from "./diversity";
 
 interface RecipeWithMetadata extends PaprikaRecipe {

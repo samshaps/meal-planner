@@ -1,7 +1,7 @@
 // app/plan/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PaprikaCategory, PaprikaRecipe } from "@/lib/paprika/types";
 import { useRouter } from "next/navigation";
 
@@ -32,14 +32,7 @@ export default function PlanPage() {
     loadCategories();
   }, []);
 
-  // Load recipes when categories change
-  useEffect(() => {
-    if (categories.length > 0) {
-      loadRecipes();
-    }
-  }, [selectedCategoryUids, useAllRecipes]);
-
-  async function loadRecipes() {
+  const loadRecipes = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -64,7 +57,14 @@ export default function PlanPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedCategoryUids, useAllRecipes]);
+
+  // Load recipes when categories change
+  useEffect(() => {
+    if (categories.length > 0) {
+      loadRecipes();
+    }
+  }, [categories.length, loadRecipes]);
 
   function handleCategoryToggle(categoryUid: string) {
     if (useAllRecipes) {

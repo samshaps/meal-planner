@@ -1,12 +1,12 @@
 // app/api/grocery-list/route.ts
 
 import { NextResponse } from "next/server";
-import { WeeklyPlan, PlannedMeal } from "@/lib/planning/types";
+import { WeeklyPlan } from "@/lib/planning/types";
 import { parseIngredients } from "@/lib/ingredients/parser";
 import { aggregateIngredients } from "@/lib/ingredients/aggregator";
 import { categorizeIngredients } from "@/lib/ingredients/categorizer";
 import { formatGroceryListForNotes, formatRecipePacket } from "@/lib/formatters/notesFormatter";
-import { PaprikaClient, PaprikaRecipeRaw } from "@/lib/paprika/client";
+import { PaprikaClient } from "@/lib/paprika/client";
 
 interface GroceryListRequestBody {
   plan: WeeklyPlan;
@@ -29,7 +29,6 @@ export async function POST(req: Request) {
 
     // Extract all ingredient lines from recipes
     const allIngredientLines: string[] = [];
-    const recipeMap = new Map<string, PaprikaRecipeRaw>();
 
     // Fetch full recipe details for each meal (if needed)
     // For AI-generated recipes, ingredients are already in the plan
@@ -68,7 +67,6 @@ export async function POST(req: Request) {
       if (meal.recipe.uid && !meal.recipe.uid.startsWith("generated-") && client) {
         try {
           const fullRecipe = await client.getRecipe(meal.recipe.uid);
-          recipeMap.set(meal.recipe.uid, fullRecipe);
           const lines = typeof fullRecipe.ingredients === "string"
             ? fullRecipe.ingredients.split("\n").filter((l: string) => l.trim())
             : [];

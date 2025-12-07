@@ -17,6 +17,7 @@ function createParsedIngredient(
   return {
     raw: `${quantity || ""} ${unit || ""} ${name}`.trim(),
     name,
+    baseName: name, // Use name as baseName for tests
     canonicalName,
     quantity,
     unit,

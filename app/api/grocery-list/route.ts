@@ -6,8 +6,7 @@ import { parseIngredients } from "@/lib/ingredients/parser";
 import { aggregateIngredients } from "@/lib/ingredients/aggregator";
 import { categorizeIngredients } from "@/lib/ingredients/categorizer";
 import { formatGroceryListForNotes, formatRecipePacket } from "@/lib/formatters/notesFormatter";
-import { PaprikaRecipe } from "@/lib/paprika/types";
-import { PaprikaClient } from "@/lib/paprika/client";
+import { PaprikaClient, PaprikaRecipeRaw } from "@/lib/paprika/client";
 
 interface GroceryListRequestBody {
   plan: WeeklyPlan;
@@ -30,7 +29,7 @@ export async function POST(req: Request) {
 
     // Extract all ingredient lines from recipes
     const allIngredientLines: string[] = [];
-    const recipeMap = new Map<string, PaprikaRecipe>();
+    const recipeMap = new Map<string, PaprikaRecipeRaw>();
 
     // Fetch full recipe details for each meal (if needed)
     // For AI-generated recipes, ingredients are already in the plan

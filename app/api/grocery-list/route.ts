@@ -35,15 +35,18 @@ export async function POST(req: Request) {
     // Fetch full recipe details for each meal (if needed)
     // For AI-generated recipes, ingredients are already in the plan
     // For Paprika recipes, we may need to fetch them
-    const client = new PaprikaClient();
+    const email = process.env.PAPRIKA_EMAIL;
+    const password = process.env.PAPRIKA_PASSWORD;
+    let client: PaprikaClient | null = null;
     
-    try {
-      await client.login(
-        process.env.PAPRIKA_EMAIL!,
-        process.env.PAPRIKA_PASSWORD!
-      );
-    } catch (err) {
-      // Silently fail - we'll use ingredients from plan
+    if (email && password) {
+      try {
+        client = new PaprikaClient(email, password);
+        await client.login();
+      } catch (err) {
+        // Silently fail - we'll use ingredients from plan
+        client = null;
+      }
     }
 
     for (const meal of plan.meals) {
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
       
       // For Paprika recipes, we need to fetch full recipe details
       // But since we're generating all recipes now, this should rarely happen
-      if (meal.recipe.uid && !meal.recipe.uid.startsWith("generated-")) {
+      if (meal.recipe.uid && !meal.recipe.uid.startsWith("generated-") && client) {
         try {
           const fullRecipe = await client.getRecipe(meal.recipe.uid);
           recipeMap.set(meal.recipe.uid, fullRecipe);

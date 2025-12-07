@@ -180,11 +180,12 @@ export function formatRecipePacket(weeklyPlan: WeeklyPlan): string {
     // Directions
     if (meal.recipe.directions) {
       lines.push("INSTRUCTIONS:");
-      const directions = typeof meal.recipe.directions === "string"
-        ? meal.recipe.directions
-        : Array.isArray(meal.recipe.directions)
-        ? meal.recipe.directions.join("\n")
-        : "";
+      let directions = "";
+      if (typeof meal.recipe.directions === "string") {
+        directions = meal.recipe.directions;
+      } else if (Array.isArray(meal.recipe.directions)) {
+        directions = meal.recipe.directions.join("\n");
+      }
       
       lines.push(directions);
       lines.push("");
